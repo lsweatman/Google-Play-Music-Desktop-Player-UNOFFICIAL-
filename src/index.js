@@ -155,7 +155,7 @@ app.setAppUserModelId('com.marshallofsound.gpmdp.core');
     I3IpcHelper.setupEventListener();
     server.deploy({
       port: 8080,
-      root: __dirname + '/server/'
+      root: __dirname + '/server/static'
     });
   });
 

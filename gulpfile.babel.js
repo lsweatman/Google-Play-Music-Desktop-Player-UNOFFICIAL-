@@ -18,7 +18,9 @@ import nodePath from 'path';
 import replace from 'gulp-replace';
 import runSequence from 'run-sequence';
 import electronWindowsStore from 'electron-windows-store';
+import webpack from 'webpack-stream';
 // import uglify from 'gulp-uglify';
+import webpackconfig from './src/server/webpack.config.js';
 import rebuild from 'electron-rebuild';
 import rasterImages from './vendor/svg_raster';
 
@@ -272,14 +274,15 @@ gulp.task('watch', ['build'], () => {
 });
 
 gulp.task('local-server', () => {
-  gulp.src('src/server/*')
-    .pipe(gulp.dest('./build/server/'));
-  gulp.src('src/server/css/*')
-    .pipe(gulp.dest('./build/server/css'));
-  gulp.src('src/server/js/*')
-    .pipe(gulp.dest('./build/server/js/'));
-  gulp.src('src/server/img/*')
-    .pipe(gulp.dest('./build/server/img/'));
+  gulp.src('src/server/app-client.js')
+    .pipe(webpack(webpackconfig, require('webpack')))
+	.pipe(gulp.dest('build/server/static/js'));
+  gulp.src('src/server/static/*')
+    .pipe(gulp.dest('./build/server/static/'));
+  gulp.src('src/server/static/css/*')
+    .pipe(gulp.dest('./build/server/static/css'));
+  gulp.src('src/server/static/img/*')
+    .pipe(gulp.dest('./build/server/static/img/'));
 });
 
 gulp.task('package:win', ['clean-dist-win', 'build-release'], (done) => {
