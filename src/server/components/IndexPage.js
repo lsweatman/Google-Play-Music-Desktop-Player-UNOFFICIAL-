@@ -6,15 +6,20 @@ import ConnectButtons from './ConnectButtons';
 import AlbumArt from './albumArt';
 import MediaButtons from './mediaButtons';
 import TrackInfo from './TrackInfo';
-import addresses from '../data/addresses';
 
-const defaultAlbumURL = "https://play-music.gstatic.com/fe/f84d59cae890101cd2fb46668db2df56/default_album_med_2x.png"
-//var socket = io();
+const defaultAlbumURL = "./img/default.png";
 
 export default class IndexPage extends React.Component {
 
     constructor(props) {
         super();
+        var userIP = localStorage.getItem("lastIP");
+
+        console.log(userIP);
+        if (userIP === null) {
+			userIP = "localhost";
+        }
+
         this.state = {
             playState: "glyphicon glyphicon-play",
             trackName: "Track Name",
@@ -22,13 +27,14 @@ export default class IndexPage extends React.Component {
             albumName: "Album Title",
             albumArtURL: defaultAlbumURL,
             connectionStatus: "Connect",
+            ipAddress: userIP,
             /*person: this.props.person*/ //Future proofing for multiple connections
         };
     }
 
     componentDidMount(){
 
-        this.connection = new WebSocket(`ws://${addresses[0].ip}:5672`);
+        this.connection = new WebSocket(`ws://${this.state.ipAddress}:5672`);
 
         this.connection.onmessage = evt => {
             this.handleMessage(evt.data);
@@ -36,7 +42,7 @@ export default class IndexPage extends React.Component {
 
         this.connection.onopen = evt => {
             var connectionJSON;
-            if (addresses[0].gpmdpAuth === ''){ //switch to person.Auth
+            if (localStorage.gpmdpAuth === null){ //switch to person.Auth
                 connectionJSON = {
                     "namespace": "connect",
                     "method": "connect",
@@ -47,7 +53,7 @@ export default class IndexPage extends React.Component {
                 connectionJSON = {
                     "namespace": "connect",
                     "method": "connect",
-                    "arguments": ["WebController", addresses[0].gpmdpAuth] //switch to person.Auth
+                    "arguments": ["WebController", localStorage.gpmdpAuth] //switch to person.Auth
                 };
             }
             this.connection.send(JSON.stringify(connectionJSON));
@@ -57,11 +63,18 @@ export default class IndexPage extends React.Component {
         };
 
         this.connection.onerror = evt => {
-            console.log(evt.data);
+            var newIP = window.prompt("Last stored IP not available. New IP:", "");
+            localStorage.setItem("lastIP", newIP);
+            this.setState({
+                ipAddress: newIP
+            });
+
+            //TODO: Still not this
+			this.componentDidMount();
         };
 
         this.connection.onclose = evt => {
-            alert(`${addresses[0].name} Closed at ${addresses[0].ip}`); //switch to person
+            alert(`Connection closed at ${this.state.ipAddress}`); //switch to person
             this.setState({
                 trackName: "Track Name",
                 artistName: "Artist",
@@ -103,8 +116,8 @@ export default class IndexPage extends React.Component {
         //Initial connection authentication handler
         if (jsonMessage.channel === 'connect' ) {
             if (jsonMessage.payload === 'CODE_REQUIRED') {
-                var fourDigitCode = prompt("Enter the 4 digit code (xxxx to abort)", "xxxx");
-                if (fourDigitCode === "xxxx") {
+                var fourDigitCode = prompt("Enter the 4 digit code (blank to abort)", "xxxx");
+                if (fourDigitCode === "") {
                     this.connection.close();
                 }
                 var connectionJSON = {
@@ -116,7 +129,16 @@ export default class IndexPage extends React.Component {
             }
             else {
                 //TODO: get this to change a json file - use react-native-fs?
-                addresses[0].gpmdpAuth = jsonMessage.payload; //change to person
+                //addresses[0].gpmdpAuth = jsonMessage.payload; //change to person
+				var authJSON = {
+					"namespace": "connect",
+					"method": "connect",
+					"arguments": ["WebController", jsonMessage.payload]
+				};
+				this.connection.send(JSON.stringify(authJSON));
+
+                localStorage.setItem("gpmdpAuth", jsonMessage.payload);
+				localStorage.setItem("lastIP", this.state.ipAddress);
             }
         }
     }
@@ -152,6 +174,12 @@ export default class IndexPage extends React.Component {
 
         //TODO: Not this - could restate all websocket functions
         else {
+			var newIP = window.prompt("New IP:", "");
+			localStorage.setItem("lastIP", newIP);
+			this.setState({
+				ipAddress: newIP
+			});
+
             this.componentDidMount();
         }
     }
