@@ -3,6 +3,7 @@ import path from 'path';
 import ua from 'universal-analytics';
 import uuid from 'uuid';
 import winston from 'winston';
+import server from 'node-http-server';
 
 import configureApp from './main/configureApp';
 import generateBrowserConfig from './main/configureBrowser';
@@ -152,6 +153,10 @@ app.setAppUserModelId('com.marshallofsound.gpmdp.core');
     // setup i3 listener
     const I3IpcHelper = new I3IpcHelperClass();
     I3IpcHelper.setupEventListener();
+    server.deploy({
+      port: 8080,
+      root: __dirname + '/server/static'
+    });
   });
 
   app.on('before-quit', () => {

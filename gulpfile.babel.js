@@ -18,7 +18,9 @@ import nodePath from 'path';
 import replace from 'gulp-replace';
 import runSequence from 'run-sequence';
 import electronWindowsStore from 'electron-windows-store';
+import webpack from 'webpack-stream';
 // import uglify from 'gulp-uglify';
+import webpackconfig from './src/server/webpack.config.js';
 import rebuild from 'electron-rebuild';
 import rasterImages from './vendor/svg_raster';
 
@@ -33,7 +35,7 @@ const paths = {
           '!node_modules/materialize-css/dist/font/material-design-icons/*',
           'node_modules/material-design-icons-iconfont/dist/fonts/**/*'],
   images: ['src/assets/img/**/*', 'src/assets/icons/*'],
-  locales: ['src/_locales/*.json'],
+  locales: ['src/_locales/*.json']
 };
 
 const packageJSON = require('./package.json');
@@ -271,6 +273,18 @@ gulp.task('watch', ['build'], () => {
   gulp.watch(paths.locales, ['locales']);
 });
 
+gulp.task('local-server', () => {
+  gulp.src('src/server/app-client.js')
+    .pipe(webpack(webpackconfig, require('webpack')))
+	.pipe(gulp.dest('build/server/static/js'));
+  gulp.src('src/server/static/*')
+    .pipe(gulp.dest('./build/server/static/'));
+  gulp.src('src/server/static/css/*')
+    .pipe(gulp.dest('./build/server/static/css'));
+  gulp.src('src/server/static/img/*')
+    .pipe(gulp.dest('./build/server/static/img/'));
+});
+
 gulp.task('package:win', ['clean-dist-win', 'build-release'], (done) => {
   packager(_.extend({}, defaultPackageConf, { platform: 'win32', arch: 'ia32' }), (err) => {
     if (err) return done(err);
@@ -439,5 +453,5 @@ zipTask('linux:rpm', ['rpm:linux'], './dist/installers/redhat', 'the Redhat (Fed
 // The default task (called when you run `gulp` from cli)
 gulp.task('default', ['watch', 'transpile', 'images']);
 gulp.task('build', ['materialize-js', 'utility-js', 'transpile', 'images', 'less',
-                    'fonts', 'html', 'locales']);
+                    'fonts', 'html', 'locales', 'local-server']);
 gulp.task('package', ['package:win', 'package:darwin', 'package:linux']);

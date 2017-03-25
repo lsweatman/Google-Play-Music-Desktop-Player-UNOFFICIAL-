@@ -27,6 +27,7 @@
     "postinstall": "electron-rebuild --types=prod,optional",
     "postversion": "node vendor/postversion.js",
     "test": "npm run lint",
+    "transpile": "gulp transpile",
     "pretest-electron": "npm run build",
     "pretest-electron-coverage": "cross-env NODE_ENV=coverage npm run build",
     "pretest-spectron": "npm run build",
@@ -60,6 +61,7 @@
   "dependencies": {
     "archiver": "^1.0.1",
     "auto-launch": "^4.0.0",
+    "babel-loader": "^6.4.0",
     "electron": "1.6.1",
     "electron-chromecast": "^1.0.17",
     "gmusic-mini-player.js": "^2.0.10",
@@ -74,8 +76,10 @@
     "mdns": "^2.3.3",
     "mkdirp": "^0.5.1",
     "node-fetch": "^1.5.2",
+    "node-http-server": "^6.2.1",
     "raven": "^0.12.1",
     "react": "^15.3.1",
+    "react-bootstrap": "^0.30.8",
     "react-color": "^2.3.4",
     "react-dom": "^15.3.1",
     "react-tap-event-plugin": "2.0.1",
@@ -90,6 +94,8 @@
     "xss": "^0.2.13"
   },
   "devDependencies": {
+    "babel-cli": "^6.23.0",
+    "babel-core": "^6.23.1",
     "babel-eslint": "^6.1.2",
     "babel-plugin-istanbul": "^2.0.1",
     "babel-plugin-transform-class-properties": "^6.11.5",
@@ -146,7 +152,9 @@
     "spec-xunit-file": "0.0.1-3",
     "spectron": "~3.4.0",
     "svg2png": "^4.0.0",
-    "to-ico": "^1.1.3"
+    "to-ico": "^1.1.3",
+    "webpack": "^2.2.1",
+    "webpack-stream": "^3.2.0"
   },
   "optionalDependencies": {
     "@nodert-win10/windows.foundation": "^0.2.95",
