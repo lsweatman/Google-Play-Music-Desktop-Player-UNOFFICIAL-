@@ -143,6 +143,7 @@
     "pn": "^1.0.0",
     "pre-commit": "^1.1.2",
     "pre-flight": "^1.0.2",
+    "prop-types": "^15.5.10",
     "rcedit": "^0.7.0",
     "react-addons-test-utils": "^15.3.1",
     "remap-istanbul": "^0.6.4",
