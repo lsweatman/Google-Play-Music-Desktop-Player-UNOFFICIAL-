@@ -21,6 +21,18 @@ module.exports = {
             use: ['babel-loader']
         }],
     },
+	plugins:[
+		new webpack.DefinePlugin({
+			'process.env.NODE_ENV': JSON.stringify('production')
+		}),
+		new webpack.optimize.UglifyJsPlugin({
+            compress: { warnings: false },
+            mangle: true,
+            sourcemap: false,
+            beautify: false,
+            dead_code: true
+        })
+	]
     /*plugins: [
         new webpack.DefinePlugin({
             'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV)

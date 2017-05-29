@@ -2,6 +2,7 @@ node_modules/
 build/
 dist/
 cov/
+src/server/static/js/
 coverage/
 .settings.json
 xunit.xml

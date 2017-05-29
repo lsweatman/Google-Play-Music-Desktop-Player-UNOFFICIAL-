@@ -6,6 +6,7 @@ import AlbumArt from './AlbumArt';
 import MediaButtons from './MediaButtons';
 import TrackInfo from './TrackInfo';
 import VolumeSlider from './VolumeSlider';
+import Seekbar from './Seekbar';
 
 const defaultAlbumURL = "./img/default.png";
 
@@ -14,14 +15,20 @@ export default class IndexPage extends React.Component {
 	constructor(props) {
 		super();
 
+		//For keeping track of time without state changes
+		var totalMilli = 0;
+		var currentMilli = 0;
+
 		this.state = {
 			playState: "glyphicon glyphicon-play",
 			trackName: "Track Name",
 			artistName: "Artist",
 			albumName: "Album Title",
 			albumArtURL: defaultAlbumURL,
-			connectionStatus: "Connect",
 			volume: 0,
+			totalTrackTime: "--:--",
+			currentTrackTime: "--:--",
+			seekBarPosition: 0,
 			/*person: this.props.person*/ //Future proofing for multiple connections
 		};
 	}
@@ -36,7 +43,7 @@ export default class IndexPage extends React.Component {
 
 		this.connection.onopen = evt => {
 			var connectionJSON;
-			if (localStorage.gpmdpAuth === null){ //switch to person.Auth
+			if (localStorage.gpmdpAuth === undefined){ //switch to person.Auth
 				connectionJSON = {
 					"namespace": "connect",
 					"method": "connect",
@@ -51,9 +58,6 @@ export default class IndexPage extends React.Component {
 				};
 			}
 			this.connection.send(JSON.stringify(connectionJSON));
-			this.setState({
-				connectionStatus: "Disconnect"
-			})
 		};
 
 		this.connection.onerror = evt => {
@@ -68,15 +72,16 @@ export default class IndexPage extends React.Component {
 		};
 
 		this.connection.onclose = evt => {
-			alert(`Connection closed at ${this.state.ipAddress}`); //switch to person
+			alert(`Error at ${this.state.ipAddress}`); //switch to person
 			this.setState({
 				trackName: "Track Name",
 				artistName: "Artist",
 				albumName: "Album Title",
 				albumArtURL: defaultAlbumURL,
 				playState: "glyphicon glyphicon-play",
-				connectionStatus: "Connect",
-				volume: 0
+				volume: 0,
+				totalTrackTime: "--:--",
+				currentTrackTime: "--:--",
 			})
 		};
 	}
@@ -86,20 +91,52 @@ export default class IndexPage extends React.Component {
 
 		//Playstate change handler to change glyphicons
 		if (jsonMessage.channel === 'playState') {
+
 			if (jsonMessage.payload === true) {
+				//Won't work if user isn't authenticated
+				if (localStorage.gpmdpAuth !== undefined) {
+
+                    //If the track is playing, start grabbing current track time
+                    var pingCurrentTime = setInterval(() => {
+                        const askCurrentTime = {
+                            "namespace": "playback",
+                            "method": "getCurrentTime",
+                            "requestID": 2
+                        };
+                        this.connection.send(JSON.stringify(askCurrentTime));
+                    }, 500);
+                    this.setState({
+						pingCurrentTime: pingCurrentTime
+					});
+                }
+
 				this.setState({
 					playState: "glyphicon glyphicon-pause"
-				})
+				});
 			}
 			else {
+				//Clear interval if the track is stopped
+				clearInterval(this.state.pingCurrentTime);
+
 				this.setState({
 					playState: "glyphicon glyphicon-play"
-				})
+				});
 			}
 		}
 
 		//Track change handler to grab all track info
 		if (jsonMessage.channel === 'track') {
+
+			//Ask for total track to suppress excess state changes
+			if (localStorage.gpmdpAuth !== undefined) {
+                const askTotalTime = {
+                    "namespace": "playback",
+                    "method": "getTotalTime",
+                    "requestID": 1
+                };
+                this.connection.send(JSON.stringify(askTotalTime));
+            }
+
 			this.setState({
 				trackName: jsonMessage.payload.title,
 				artistName: jsonMessage.payload.artist,
@@ -117,8 +154,9 @@ export default class IndexPage extends React.Component {
 
 		//Initial connection authentication handler
 		if (jsonMessage.channel === 'connect' ) {
+			//If the client doesn't have a code already
 			if (jsonMessage.payload === 'CODE_REQUIRED') {
-				var fourDigitCode = prompt("Enter the 4 digit code (blank to abort)", "xxxx");
+				var fourDigitCode = prompt("Enter the 4 digit code (blank to abort)", "");
 				if (fourDigitCode === "") {
 					this.connection.close();
 				}
@@ -129,6 +167,8 @@ export default class IndexPage extends React.Component {
 				};
 				this.connection.send(JSON.stringify(connectionJSON));
 			}
+
+			//If the user successfully gets a key back
 			else {
 				var authJSON = {
 					"namespace": "connect",
@@ -138,8 +178,69 @@ export default class IndexPage extends React.Component {
 				this.connection.send(JSON.stringify(authJSON));
 
 				localStorage.setItem("gpmdpAuth", jsonMessage.payload);
+                this.getTotalTime();
+                this.getCurrentTime();
 			}
 		}
+
+		//Grab time for the seekbar
+		if (jsonMessage.namespace === 'result') {
+
+			//Parse time
+            var milliseconds = parseInt((jsonMessage.value%1000)/100);
+            var seconds = parseInt((jsonMessage.value/1000)%60);
+            var minutes = parseInt((jsonMessage.value/(1000*60))%60);
+            var hours = parseInt((jsonMessage.value/(1000*60*60))%24);
+
+            hours = (hours < 10) ? "0" + hours : hours;
+            minutes = (minutes < 10) ? "0" + minutes : minutes;
+            seconds = (seconds < 10) ? "0" + seconds : seconds;
+
+            //Change the format based on song length
+            var formatTime;
+            if (hours >= 1) {
+                formatTime = hours + ":" + minutes + ":" + seconds;
+			}
+			else {
+                formatTime = minutes + ":" + seconds;
+			}
+
+			//Takes return JSON from total time request
+			if (jsonMessage.requestID === 1) {
+				this.totalMilli = jsonMessage.value;
+				this.setState({
+					totalTrackTime: formatTime,
+				});
+			}
+
+            //Takes return JSON from current time request
+			else if (jsonMessage.requestID === 2) {
+
+				this.currentMilli = jsonMessage.value;
+				this.setState({
+					currentTrackTime: formatTime,
+					seekBarPosition: (this.currentMilli / this.totalMilli) * 100,
+				})
+			}
+		}
+	}
+
+	getCurrentTime() {
+		const askCurrentTime = {
+			"namespace": "playback",
+			"method": "getCurrentTime",
+			"requestID": 2
+		};
+		this.connection.send(JSON.stringify(askCurrentTime));
+	}
+
+	getTotalTime() {
+		const askTotalTime = {
+			"namespace": "playback",
+			"method": "getTotalTime",
+			"requestID": 1
+		};
+		this.connection.send(JSON.stringify(askTotalTime));
 	}
 
 	handlePlayPause() {
@@ -166,35 +267,65 @@ export default class IndexPage extends React.Component {
 		this.connection.send(JSON.stringify(rewindJSON));
 	}
 
-	handleConnectionToggle() {
-		if (this.state.connectionStatus === 'Disconnect') {
-			this.connection.close();
-		}
-
-		//TODO: Not this - could restate all websocket functions
-		else {
-			var newIP = window.prompt("New IP:", "");
-			localStorage.setItem("lastIP", newIP);
-			this.setState({
-				ipAddress: newIP
-			});
-
-			this.componentDidMount();
-		}
-	}
-
-	handleVolumeChange(evt) {
-		//TODO: Have this not only change on mouseup event
+	//For when the mouse up event is fired
+	//Used to suppress tons of messages back to GPMDP
+	handleVolumeMouseUp(evt) {
 		var volumeJSON = {
 			"namespace": "volume",
 			"method": "setVolume",
 			"arguments": [evt.target.value]
 		};
 		this.connection.send(JSON.stringify(volumeJSON));
+	}
 
-		this.setState({
-			volume: evt.target.value
-		});
+	handleVolumeChange(evt) {
+        this.setState({
+            volume: evt.target.value
+        });
+	}
+
+	//Reports final selection to GPMDP
+	handleSliderMouseUp(evt) {
+		//Set Player time position
+		var setTimeJSON = {
+			"namespace": "playback",
+			"method": "setCurrentTime",
+			"arguments": [(evt.target.value / 100) * this.totalMilli]
+		};
+		this.connection.send(JSON.stringify(setTimeJSON));
+
+		//Restart the interval if the track is currently playing
+        if (this.state.playState === "glyphicon glyphicon-pause") {
+            var pingCurrentTime = setInterval(() => {
+                const askCurrentTime = {
+                    "namespace": "playback",
+                    "method": "getCurrentTime",
+                    "requestID": 2
+                };
+                this.connection.send(JSON.stringify(askCurrentTime));
+            }, 500);
+            this.setState({
+                seekBarPosition: evt.target.value,
+				pingCurrentTime: pingCurrentTime
+            });
+        }
+
+        else {
+            //Change the position on the site otherwise interface is locked
+            this.setState({
+                seekBarPosition: evt.target.value
+            });
+        }
+
+	}
+
+	//Clears interval to suppress extra messages
+	//Con: Have to mouse up to change time but won't make GPMDP throw errors
+	handleSliderOnChange(evt) {
+        clearInterval(this.state.pingCurrentTime);
+        this.setState({
+            seekBarPosition: evt.target.value
+        });
 	}
 
 	render() {
@@ -202,8 +333,15 @@ export default class IndexPage extends React.Component {
 			<div className="single-person-div">
 				<AlbumArt albumArtURL={this.state.albumArtURL}/>
 
+				<Seekbar currentTime={this.state.currentTrackTime}
+          totalTime={this.state.totalTrackTime}
+						 sliderCurrent={this.state.seekBarPosition}
+						 onMouseUp={this.handleSliderMouseUp.bind(this)}
+						 onChange={this.handleSliderOnChange.bind(this)}/>
+
 				<VolumeSlider pVolume={this.state.volume}
-							  onChange={this.handleVolumeChange.bind(this)}/>
+							  onVolChange={this.handleVolumeChange.bind(this)}
+							  onVolMouseUp={this.handleVolumeMouseUp.bind(this)}/>
 
 				<TrackInfo trackName={this.state.trackName}
 						   artistName={this.state.artistName}
